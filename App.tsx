@@ -10,6 +10,7 @@ import AdminView from './views/AdminView';
 import NotificationView from './views/NotificationView';
 import ChatView from './views/ChatView';
 import AccessibilityView from './views/AccessibilityView';
+import AppointmentsView from './views/AppointmentsView';
 import RatingPopup from './components/RatingPopup';
 
 const App: React.FC = () => {
@@ -56,6 +57,7 @@ const App: React.FC = () => {
       {activeTab === 'chat' && <ChatView />}
       {activeTab === 'points' && <PointsView />}
       {activeTab === 'profile' && <ProfileView />}
+      {activeTab === 'appointments' && <AppointmentsView />}
       {activeTab === 'admin' && <AdminView onGoToChat={() => setActiveTab('chat')} />}
       {activeTab === 'notifications' && <NotificationView />}
       {activeTab === 'accessibility' && <AccessibilityView />}

@@ -9,7 +9,8 @@ import {
   Settings,
   Bell,
   MessageCircle,
-  Accessibility
+  Accessibility,
+  Clock
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -45,10 +46,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
   }
 
   tabs.push(
-    { id: 'schedule', icon: Calendar, label: 'Agenda' },
-    { id: 'chat', icon: MessageCircle, label: 'Chat', badge: unreadChat },
-    { id: 'accessibility', icon: Accessibility, label: 'Acesso' },
+    { id: 'schedule', icon: Calendar, label: 'Agendar' },
+    { id: 'appointments', icon: Clock, label: 'Agendamentos' },
     { id: 'points', icon: Award, label: 'Pontos' },
+    { id: 'chat', icon: MessageCircle, label: 'Chat', badge: unreadChat },
     { id: 'profile', icon: UserIcon, label: 'Perfil' }
   );
 

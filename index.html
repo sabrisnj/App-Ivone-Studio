@@ -5,10 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#FFF9F8">
-    <meta name="description" content="Ivone Hair Studio - Agendamento Digital e Fidelidade.">
-    <title>Ivone Hair Studio | Gestão & Agendamento</title>
+    <meta name="description" content="Ivone Hair Studio - Gestão & Agendamento Digital">
+    <title>Ivone Hair Studio | Oficial</title>
     
+    <!-- Dependências Externas -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
@@ -26,7 +28,9 @@
             margin: 0;
             padding: 0;
             overflow-x: hidden;
+            transition: background-color 0.3s ease;
         }
+        .dark body { background-color: #18181b; color: #f4f4f5; }
         h1, h2, h3, .font-serif { font-family: 'Playfair Display', serif; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -38,12 +42,19 @@
                 max-width: 450px;
                 margin: 0 auto;
                 min-height: 100vh;
-                box-shadow: 0 0 50px rgba(0,0,0,0.05);
+                box-shadow: 0 0 50px rgba(0,0,0,0.1);
                 background: white;
             }
+            .dark #root { background: #18181b; }
         }
+
+        /* Estilos Customizados Tailwind */
+        .bg-studio-rose { background-color: #D99489; }
+        .text-studio-rose { color: #D99489; }
+        .border-studio-rose { border-color: #D99489; }
     </style>
 
+    <!-- Import Map para Módulos ES -->
     <script type="importmap">
 {
   "imports": {
@@ -52,14 +63,322 @@
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
     "lucide-react": "https://esm.sh/lucide-react@0.468.0",
     "@google/genai": "https://esm.sh/@google/genai@^1.41.0",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/"
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
 </head>
 <body>
     <div id="root"></div>
-    <script type="module" src="./index.tsx"></script>
+
+    <!-- Lógica do Aplicativo -->
+    <script type="text/babel" data-type="module">
+        import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { 
+            Home, Calendar, User as UserIcon, Award, Settings, Bell, MessageCircle, 
+            Accessibility, Instagram, Leaf, Sparkles, Cake, Ticket, ChevronRight, 
+            Scissors, Footprints, Plus, X, Image as ImageIcon, Trash2, Zap, 
+            Camera, ShieldCheck, CheckCircle2, ChevronLeft, Clock, Copy, ArrowRight,
+            Info, AlertCircle, LogOut, Star, Send, Contrast, Sun, Moon, Volume2, Type as TypeIcon
+        } from 'lucide-react';
+        import { GoogleGenAI } from "@google/genai";
+
+        // --- TIPOS ---
+        const ServiceCategory = {
+            HAIR: 'Cabelo',
+            NAILS: 'Unhas',
+            BODY: 'Corpo',
+            FACE: 'Rosto',
+        };
+
+        // --- CONSTANTES ---
+        const INITIAL_SERVICES = [
+            { id: '1', name: 'Coloração Premium', category: ServiceCategory.HAIR, duration: '120 min', price: 180, description: 'Tratamento de cor com tecnologia botânica.', gallery: [] },
+            { id: '2', name: 'Escova Modelada', category: ServiceCategory.HAIR, duration: '45 min', price: 60, description: 'Finalização profissional com brilho intenso.', gallery: [] },
+            { id: '3', name: 'SPA de Unhas', category: ServiceCategory.NAILS, duration: '90 min', price: 85, description: 'Ritual completo com esfoliação e hidratação.', gallery: [] }
+        ];
+
+        // --- STORE (CONTEXTO) ---
+        const AppContext = createContext();
+
+        const AppProvider = ({ children }) => {
+            const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('ivone_user') || 'null'));
+            const [appointments, setAppointments] = useState(() => JSON.parse(localStorage.getItem('ivone_apps') || '[]'));
+            const [services, setServices] = useState(() => JSON.parse(localStorage.getItem('ivone_services') || JSON.stringify(INITIAL_SERVICES)));
+            const [salonConfig, setSalonConfig] = useState(() => JSON.parse(localStorage.getItem('ivone_config') || JSON.stringify({
+                pixPrepayment: true, pixName: 'Ivone Studio', pixKey: 'ivoneperpetuo13@gmail.com',
+                businessHours: { days: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'], start: '09:00', end: '18:00' },
+                dynamicText: { heroTitle: "The Ivory Experience", heroSubtitle: "Sua essência, realçada.", studioDescription: "Protocolos Ivone", protocolSectionTitle: "Curadoria Exclusiva" }
+            })));
+            const [accessibility, setAccessibility] = useState(() => JSON.parse(localStorage.getItem('ivone_access') || JSON.stringify({ darkMode: false, fontSize: 100 })));
+            const [chatMessages, setChatMessages] = useState([]);
+            const [isAdmin, setIsAdmin] = useState(false);
+            const [isTyping, setIsTyping] = useState(false);
+
+            useEffect(() => localStorage.setItem('ivone_user', JSON.stringify(user)), [user]);
+            useEffect(() => localStorage.setItem('ivone_apps', JSON.stringify(appointments)), [appointments]);
+            useEffect(() => localStorage.setItem('ivone_services', JSON.stringify(services)), [services]);
+            useEffect(() => {
+                localStorage.setItem('ivone_config', JSON.stringify(salonConfig));
+                document.documentElement.classList.toggle('dark', accessibility.darkMode);
+            }, [salonConfig, accessibility]);
+
+            const login = (name, phone, birthDate) => setUser({ id: phone, name, phone, birthDate, points: { hair: 0, nails: 0 }, rewards: [] });
+            const logout = () => { setUser(null); setIsAdmin(false); };
+            const toggleAdmin = () => setIsAdmin(!isAdmin);
+
+            const addAppointment = (app) => {
+                const newApp = { ...app, id: Math.random().toString(36).substr(2, 9), status: 'pending', paymentStatus: 'unpaid', createdAt: new Date().toISOString() };
+                setAppointments(prev => [...prev, newApp]);
+            };
+
+            const sendChatMessage = async (text, sender) => {
+                const newMessage = { id: Date.now(), text, sender, timestamp: new Date() };
+                setChatMessages(prev => [...prev, newMessage]);
+                if (sender === 'client') {
+                    setIsTyping(true);
+                    try {
+                        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                        const response = await ai.models.generateContent({
+                            model: 'gemini-3-flash-preview',
+                            contents: `Cliente: ${text}`,
+                            config: { systemInstruction: "Você é Ivone, dona do estúdio. Seja luxuosa e gentil.", temperature: 0.7 }
+                        });
+                        setChatMessages(prev => [...prev, { id: Date.now()+1, text: response.text, sender: 'admin', timestamp: new Date() }]);
+                    } catch (e) { console.error(e); } finally { setIsTyping(false); }
+                }
+            };
+
+            const value = {
+                user, appointments, services, salonConfig, isAdmin, isTyping, chatMessages, accessibility,
+                login, logout, toggleAdmin, addAppointment, updateServices: setServices, updateSalonConfig: setSalonConfig,
+                sendChatMessage, updateAccessibility: setAccessibility, confirmAppointment: (id) => setAppointments(prev => prev.map(a => a.id === id ? {...a, status: 'confirmed'} : a))
+            };
+
+            return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+        };
+
+        const useApp = () => useContext(AppContext);
+
+        // --- COMPONENTES DE VIEW ---
+
+        const HomeView = ({ onSchedule }) => {
+            const { user, salonConfig, services } = useApp();
+            return (
+                <div className="p-6 space-y-8 animate-fade">
+                    <section className="bg-white dark:bg-zinc-900 border border-[#F5E6DA] dark:border-zinc-800 rounded-[3rem] p-8 shadow-sm relative overflow-hidden">
+                        <div className="relative z-10 space-y-2">
+                            <span className="text-[10px] font-bold text-[#D4B499] uppercase tracking-widest">{salonConfig.dynamicText.heroTitle}</span>
+                            <h2 className="text-4xl font-serif font-bold text-[#4A3B39] dark:text-white">Olá, {user?.name.split(' ')[0]}</h2>
+                            <p className="text-sm text-gray-400 italic">{salonConfig.dynamicText.heroSubtitle}</p>
+                        </div>
+                        <Leaf className="absolute -right-8 -bottom-8 opacity-5 text-[#D4B499]" size={150} />
+                    </section>
+
+                    <section className="space-y-4">
+                        <h3 className="text-xl font-serif font-bold px-2">{salonConfig.dynamicText.studioDescription}</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            {services.map(s => (
+                                <button key={s.id} onClick={() => onSchedule(s.id)} className="bg-white dark:bg-zinc-900 p-6 rounded-[2rem] border border-[#F5E6DA] dark:border-zinc-800 text-center space-y-3 hover:scale-95 transition-all">
+                                    <div className="w-12 h-12 bg-[#FAF7F5] dark:bg-zinc-800 rounded-xl flex items-center justify-center mx-auto text-[#D4B499] shadow-inner">
+                                        {s.category === ServiceCategory.HAIR ? <Scissors size={24}/> : <Sparkles size={24}/>}
+                                    </div>
+                                    <p className="text-[10px] font-bold uppercase text-gray-800 dark:text-gray-200">{s.name}</p>
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+                </div>
+            );
+        };
+
+        const AdminView = () => {
+            const { appointments, services, confirmAppointment, toggleAdmin } = useApp();
+            return (
+                <div className="p-6 space-y-6 animate-fade">
+                    <header className="flex justify-between items-center">
+                        <h2 className="text-2xl font-serif font-bold">Gestão Ivone</h2>
+                        <button onClick={toggleAdmin} className="p-2 bg-gray-100 rounded-lg text-gray-400"><X size={18}/></button>
+                    </header>
+                    <div className="space-y-4">
+                        <h3 className="text-[10px] font-bold uppercase text-gray-400 tracking-widest">Pendentes</h3>
+                        {appointments.filter(a => a.status === 'pending').map(app => (
+                            <div key={app.id} className="bg-white p-6 rounded-3xl border border-gray-100 flex justify-between items-center shadow-sm">
+                                <div>
+                                    <p className="font-bold text-sm">{app.clientName}</p>
+                                    <p className="text-[10px] text-[#D99489] font-bold">{services.find(s => s.id === app.serviceId)?.name}</p>
+                                    <p className="text-[9px] text-gray-400 italic">{app.date} às {app.time}</p>
+                                </div>
+                                <button onClick={() => confirmAppointment(app.id)} className="bg-[#86BDB1] text-white p-3 rounded-xl shadow-lg"><Plus size={16}/></button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const ScheduleView = ({ serviceId, onBack }) => {
+            const { addAppointment, services, user } = useApp();
+            const [date, setDate] = useState('');
+            const [time, setTime] = useState('');
+            const [done, setDone] = useState(false);
+
+            const handleConfirm = () => {
+                addAppointment({ serviceId, clientName: user.name, clientPhone: user.phone, date, time });
+                setDone(true);
+            };
+
+            if (done) return (
+                <div className="p-8 text-center space-y-6 animate-fade">
+                    <CheckCircle2 size={80} className="mx-auto text-green-500" />
+                    <h2 className="text-3xl font-serif font-bold">Pedido Enviado!</h2>
+                    <p className="text-sm text-gray-400">Ivone analisará sua solicitação em breve.</p>
+                    <button onClick={onBack} className="w-full bg-[#D99489] text-white py-4 rounded-2xl font-bold uppercase">Voltar ao Início</button>
+                </div>
+            );
+
+            return (
+                <div className="p-6 space-y-8 animate-fade">
+                    <button onClick={onBack} className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase"><ChevronLeft size={16}/> Voltar</button>
+                    <h2 className="text-3xl font-serif font-bold">Agendar</h2>
+                    <div className="space-y-4">
+                        <input type="date" className="w-full p-5 bg-white border border-gray-100 rounded-3xl outline-none" onChange={e => setDate(e.target.value)} />
+                        <select className="w-full p-5 bg-white border border-gray-100 rounded-3xl outline-none" onChange={e => setTime(e.target.value)}>
+                            <option value="">Selecione a Hora</option>
+                            <option value="09:00">09:00</option>
+                            <option value="14:00">14:00</option>
+                            <option value="17:00">17:00</option>
+                        </select>
+                    </div>
+                    <button onClick={handleConfirm} disabled={!date || !time} className="w-full bg-[#8B5E3C] text-white py-5 rounded-3xl font-bold shadow-xl disabled:opacity-30">Confirmar Reserva</button>
+                </div>
+            );
+        };
+
+        const ProfileView = () => {
+            const { user, appointments, services, logout } = useApp();
+            return (
+                <div className="p-6 space-y-8 animate-fade">
+                    <header className="text-center space-y-4">
+                        <div className="w-24 h-24 bg-[#D99489] rounded-[2.5rem] flex items-center justify-center text-white text-3xl font-serif font-bold mx-auto shadow-2xl">{user?.name.charAt(0)}</div>
+                        <h2 className="text-2xl font-serif font-bold">{user?.name}</h2>
+                        <button onClick={logout} className="text-[10px] font-bold text-red-400 uppercase tracking-widest flex items-center gap-2 mx-auto"><LogOut size={14}/> Sair</button>
+                    </header>
+                    <div className="space-y-4">
+                        <h3 className="text-[10px] font-bold uppercase text-gray-400">Meus Agendamentos</h3>
+                        {appointments.map(a => (
+                            <div key={a.id} className="bg-white p-5 rounded-3xl border border-gray-100 flex justify-between items-center shadow-sm">
+                                <div>
+                                    <p className="font-bold text-sm">{services.find(s => s.id === a.serviceId)?.name}</p>
+                                    <p className="text-[10px] text-gray-400">{a.date} às {a.time}</p>
+                                </div>
+                                <span className={`text-[8px] font-bold uppercase px-3 py-1 rounded-full ${a.status === 'confirmed' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                                    {a.status === 'confirmed' ? 'Confirmado' : 'Em Análise'}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const ChatView = () => {
+            const { chatMessages, sendChatMessage, isTyping } = useApp();
+            const [text, setText] = useState('');
+            const endRef = useRef(null);
+            useEffect(() => endRef.current?.scrollIntoView({behavior: 'smooth'}), [chatMessages]);
+
+            return (
+                <div className="flex flex-col h-[calc(100vh-140px)] animate-fade">
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
+                        {chatMessages.map(m => (
+                            <div key={m.id} className={`flex ${m.sender === 'client' ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[80%] p-4 rounded-3xl ${m.sender === 'client' ? 'bg-[#D99489] text-white rounded-tr-none' : 'bg-white dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 rounded-tl-none'}`}>
+                                    <p className="text-sm">{m.text}</p>
+                                </div>
+                            </div>
+                        ))}
+                        {isTyping && <p className="text-[10px] text-[#D99489] font-bold animate-pulse">Ivone está digitando...</p>}
+                        <div ref={endRef} />
+                    </div>
+                    <div className="p-4 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-zinc-800 flex gap-2">
+                        <input type="text" value={text} onChange={e => setText(e.target.value)} placeholder="Dúvida sobre um serviço?" className="flex-1 p-4 bg-gray-50 dark:bg-zinc-800 rounded-2xl outline-none text-sm" />
+                        <button onClick={() => { if(text.trim()) { sendChatMessage(text, 'client'); setText(''); } }} className="bg-[#D99489] text-white p-4 rounded-2xl shadow-lg"><Send size={20}/></button>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- COMPONENTE PRINCIPAL ---
+        const App = () => {
+            const { user, login, isAdmin, toggleAdmin } = useApp();
+            const [activeTab, setActiveTab] = useState('home');
+            const [selectedService, setSelectedService] = useState(null);
+
+            const [lName, setLName] = useState('');
+            const [lPhone, setLPhone] = useState('');
+
+            if (!user && !isAdmin) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center p-8 bg-[#FFF9F8]">
+                        <div className="w-full max-w-md bg-white rounded-[40px] p-12 shadow-2xl space-y-10 text-center border border-[#F5E6DA]">
+                            <div className="space-y-4">
+                                <div className="w-24 h-24 bg-[#D99489] rounded-full mx-auto flex items-center justify-center text-white text-3xl font-serif font-bold shadow-lg">IH</div>
+                                <h1 className="text-3xl font-serif font-bold">Ivone Hair Studio</h1>
+                                <p className="text-[10px] font-bold text-[#86BDB1] tracking-[0.4em] uppercase">Beleza & Estética</p>
+                            </div>
+                            <div className="space-y-4">
+                                <input placeholder="Nome Completo" className="w-full p-5 bg-gray-50 rounded-2xl outline-none" onChange={e => setLName(e.target.value)} />
+                                <input placeholder="WhatsApp (DDD)" className="w-full p-5 bg-gray-50 rounded-2xl outline-none" onChange={e => setLPhone(e.target.value)} />
+                                <button onClick={() => login(lName, lPhone)} disabled={!lName || !lPhone} className="w-full bg-[#D99489] text-white py-5 rounded-2xl font-bold shadow-xl shadow-[#D99489]/20 uppercase tracking-widest text-[11px] disabled:opacity-50">Entrar no Studio</button>
+                                <button onClick={toggleAdmin} className="text-[8px] text-gray-300 font-bold uppercase tracking-widest">Acesso Gestão</button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="flex flex-col min-h-screen pb-20">
+                    <header className="bg-white dark:bg-zinc-900 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-50 transition-colors">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-[#D99489] rounded-full flex items-center justify-center text-white font-serif font-bold">IH</div>
+                            <h1 className="text-sm font-serif font-bold text-[#4A3B39] dark:text-white">IVONE STUDIO</h1>
+                        </div>
+                        <button onClick={() => setActiveTab('points')} className="p-2 bg-[#FAF7F5] dark:bg-zinc-800 rounded-xl text-[#D99489]"><Award size={20}/></button>
+                    </header>
+
+                    <main className="flex-1">
+                        {activeTab === 'home' && <HomeView onSchedule={(id) => { setSelectedService(id); setActiveTab('schedule'); }} />}
+                        {activeTab === 'schedule' && <ScheduleView serviceId={selectedService} onBack={() => setActiveTab('home')} />}
+                        {activeTab === 'chat' && <ChatView />}
+                        {activeTab === 'profile' && <ProfileView />}
+                        {activeTab === 'admin' && <AdminView />}
+                    </main>
+
+                    <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-zinc-800 flex justify-around items-center py-3 z-50">
+                        {[
+                            { id: 'home', icon: Home, label: 'Início' },
+                            { id: 'chat', icon: MessageCircle, label: 'Chat' },
+                            { id: isAdmin ? 'admin' : 'profile', icon: isAdmin ? Settings : UserIcon, label: isAdmin ? 'Gestão' : 'Perfil' }
+                        ].map(t => (
+                            <button key={t.id} onClick={() => setActiveTab(t.id)} className={`flex flex-col items-center gap-1 ${activeTab === t.id ? 'text-[#D99489]' : 'text-gray-300'}`}>
+                                <t.icon size={22} />
+                                <span className="text-[8px] font-bold uppercase">{t.label}</span>
+                            </button>
+                        ))}
+                    </nav>
+                </div>
+            );
+        };
+
+        // --- RENDERIZAÇÃO FINAL ---
+        const root = createRoot(document.getElementById('root'));
+        root.render(<AppProvider><App /></AppProvider>);
+    </script>
+<script type="module" src="/index.tsx"></script>
 </body>
 </html>

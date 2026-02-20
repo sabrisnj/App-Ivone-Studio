@@ -36,7 +36,17 @@ const HomeView: React.FC<HomeViewProps> = ({ onQuickRebook, onGoToAdmin }) => {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const recentVouchers = vouchers.slice(-2).reverse();
+  const fixedVouchers = vouchers.filter(v => v.id.startsWith('v_terca') || v.id.startsWith('v_quarta'));
+  const otherVouchers = vouchers.filter(v => !v.id.startsWith('v_terca') && !v.id.startsWith('v_quarta')).slice(-2).reverse();
+  const displayVouchers = [...fixedVouchers, ...otherVouchers];
+
+  const handleVoucherAction = (v: any) => {
+    if (v.serviceId) {
+      onQuickRebook(v.serviceId);
+    } else {
+      redeemVoucher(v.id);
+    }
+  };
 
   const getServiceStyle = (category: ServiceCategory) => {
     switch (category) {
@@ -164,9 +174,10 @@ const HomeView: React.FC<HomeViewProps> = ({ onQuickRebook, onGoToAdmin }) => {
             <a 
               href={`https://instagram.com/${SALON_INFO.instagram.replace('@', '')}`} 
               target="_blank"
-              className="bg-[#FAF7F5] dark:bg-zinc-800 text-[#D4B499] border border-[#F5E6DA] dark:border-zinc-700 px-6 py-3.5 rounded-2xl text-[10px] font-bold flex items-center gap-2 uppercase tracking-widest shadow-sm hover:bg-[#D4B499] hover:text-white transition-all active:scale-95"
+              rel="noopener noreferrer"
+              className="bg-gradient-to-r from-[#D99489] to-[#86BDB1] text-white px-6 py-3.5 rounded-2xl text-[10px] font-bold flex items-center gap-2 uppercase tracking-widest shadow-md hover:shadow-lg transition-all active:scale-95"
             >
-              <Instagram size={14} /> Instagram
+              <Instagram size={16} /> @ivonehairstudio
             </a>
           </div>
         </div>
@@ -180,7 +191,7 @@ const HomeView: React.FC<HomeViewProps> = ({ onQuickRebook, onGoToAdmin }) => {
           <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold italic">Edição Limitada</p>
         </div>
         <div className="flex gap-5 overflow-x-auto no-scrollbar px-1 pb-4">
-          {recentVouchers.map(v => {
+          {displayVouchers.map(v => {
             const left = v.limit - v.redeemed;
             const isExhausted = left <= 0;
             return (
@@ -193,17 +204,19 @@ const HomeView: React.FC<HomeViewProps> = ({ onQuickRebook, onGoToAdmin }) => {
                     {v.name} {isExhausted && '(Esgotado)'}
                   </h4>
                   <p className="text-[11px] text-gray-400 leading-relaxed italic">{v.description}</p>
+                  {v.price && <p className="text-lg font-bold text-[#D99489]">R$ {v.price}</p>}
                 </div>
                 <div className="flex justify-between items-center relative z-10">
                   <div className={`px-3 py-1.5 rounded-full text-[9px] font-bold uppercase ${isExhausted ? 'bg-gray-100 text-gray-400' : 'bg-red-50 text-red-500'}`}>
-                    {isExhausted ? 'Sem estoque' : `Restam ${left} un.`}
+                    {isExhausted ? 'Sem estoque' : v.serviceId ? 'Oferta Fixa' : `Restam ${left} un.`}
                   </div>
                   <button 
-                    onClick={() => redeemVoucher(v.id)}
+                    onClick={() => handleVoucherAction(v)}
                     disabled={isExhausted}
-                    className="bg-[#D99489] text-white p-3.5 rounded-2xl shadow-lg active:scale-90 disabled:bg-gray-200 disabled:shadow-none transition-all"
+                    className="bg-[#D99489] text-white p-3.5 rounded-2xl shadow-lg active:scale-90 disabled:bg-gray-200 disabled:shadow-none transition-all flex items-center gap-2"
                   >
-                    <Ticket size={20} />
+                    {v.serviceId ? <Calendar size={20} /> : <Ticket size={20} />}
+                    {v.serviceId && <span className="text-[10px] font-bold uppercase">Agendar</span>}
                   </button>
                 </div>
               </div>

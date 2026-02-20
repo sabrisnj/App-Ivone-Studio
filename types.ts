@@ -55,6 +55,9 @@ export interface Voucher {
   description: string;
   limit: number;
   redeemed: number;
+  serviceId?: string; // Added for direct scheduling
+  price?: number; // Added to show the special price
+  expiryDate?: string; // Added for expiration indicator
 }
 
 export interface Notification {
